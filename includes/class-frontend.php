@@ -31,6 +31,8 @@ class Eseabasi_Frontend {
         add_action('wp_ajax_nopriv_eseabasi_get_current_values', array($this, 'ajax_get_current_values'));
         add_action('wp_ajax_eseabasi_export_history', array($this, 'ajax_export_history'));
         add_action('wp_ajax_nopriv_eseabasi_export_history', array($this, 'ajax_export_history'));
+        add_action('wp_ajax_eseabasi_filter_history', array($this, 'ajax_filter_history'));
+        add_action('wp_ajax_nopriv_eseabasi_filter_history', array($this, 'ajax_filter_history'));
     }
     
     /**
@@ -992,7 +994,59 @@ class Eseabasi_Frontend {
         $type = sanitize_text_field($_POST['type']);
         $format = sanitize_text_field($_POST['format'] ?? 'csv');
         
-        // Implementation will be added for CSV/PDF export
-        wp_send_json_success(array('message' => __('Export functionality will be implemented.', 'eseabasi-inventory')));
+        $filters = array();
+        if (isset($_POST['date_from']) && !empty($_POST['date_from'])) {
+            $filters['date_from'] = sanitize_text_field($_POST['date_from']);
+        }
+        if (isset($_POST['date_to']) && !empty($_POST['date_to'])) {
+            $filters['date_to'] = sanitize_text_field($_POST['date_to']);
+        }
+        if (isset($_POST['product_id']) && !empty($_POST['product_id'])) {
+            $filters['product_id'] = intval($_POST['product_id']);
+        }
+        
+        $analytics = new Eseabasi_Analytics();
+        $result = $analytics->get_export_data($type, $format, $filters);
+        
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+    
+    /**
+     * AJAX: Filter history
+     */
+    public function ajax_filter_history() {
+        check_ajax_referer('eseabasi_frontend_nonce', 'nonce');
+        
+        $type = sanitize_text_field($_POST['type']);
+        
+        $filters = array();
+        if (isset($_POST['date_from']) && !empty($_POST['date_from'])) {
+            $filters['date_from'] = sanitize_text_field($_POST['date_from']);
+        }
+        if (isset($_POST['date_to']) && !empty($_POST['date_to'])) {
+            $filters['date_to'] = sanitize_text_field($_POST['date_to']);
+        }
+        if (isset($_POST['product_id']) && !empty($_POST['product_id'])) {
+            $filters['product_id'] = intval($_POST['product_id']);
+        }
+        
+        $html = '';
+        switch ($type) {
+            case 'import':
+                $html = $this->render_import_history($filters);
+                break;
+            case 'stock':
+                $html = $this->render_stock_history($filters);
+                break;
+            case 'chopped':
+                $html = $this->render_chopped_history($filters);
+                break;
+        }
+        
+        wp_send_json_success(array('html' => $html));
     }
 }

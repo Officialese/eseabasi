@@ -20,6 +20,7 @@ class Eseabasi_Admin {
         add_action('wp_ajax_eseabasi_add_product', array($this, 'ajax_add_product'));
         add_action('wp_ajax_eseabasi_edit_product', array($this, 'ajax_edit_product'));
         add_action('wp_ajax_eseabasi_delete_product', array($this, 'ajax_delete_product'));
+        add_action('wp_ajax_eseabasi_get_product', array($this, 'ajax_get_product'));
         add_action('wp_ajax_eseabasi_clear_history', array($this, 'ajax_clear_history'));
         add_action('wp_ajax_eseabasi_delete_history_item', array($this, 'ajax_delete_history_item'));
     }
@@ -431,6 +432,37 @@ class Eseabasi_Admin {
     }
     
     /**
+     * AJAX: Get product data
+     */
+    public function ajax_get_product() {
+        check_ajax_referer('eseabasi_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'eseabasi-inventory'));
+        }
+        
+        $product_id = intval($_POST['product_id']);
+        
+        if (!$product_id) {
+            wp_send_json_error(array('message' => __('Product ID is required.', 'eseabasi-inventory')));
+        }
+        
+        global $wpdb;
+        $products_table = $wpdb->prefix . 'eseabasi_products';
+        
+        $product = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $products_table WHERE id = %d",
+            $product_id
+        ));
+        
+        if ($product) {
+            wp_send_json_success($product);
+        } else {
+            wp_send_json_error(array('message' => __('Product not found.', 'eseabasi-inventory')));
+        }
+    }
+    
+    /**
      * AJAX: Add product
      */
     public function ajax_add_product() {
@@ -440,8 +472,44 @@ class Eseabasi_Admin {
             wp_die(__('Unauthorized', 'eseabasi-inventory'));
         }
         
-        // Implementation will be added in the next iteration
-        wp_send_json_success(array('message' => __('Product added successfully.', 'eseabasi-inventory')));
+        $name = sanitize_text_field($_POST['name']);
+        $type = sanitize_text_field($_POST['type']);
+        $is_fruit = isset($_POST['is_fruit']) ? 1 : 0;
+        $status = sanitize_text_field($_POST['status']);
+        
+        if (empty($name) || empty($type)) {
+            wp_send_json_error(array('message' => __('Product name and type are required.', 'eseabasi-inventory')));
+        }
+        
+        global $wpdb;
+        $products_table = $wpdb->prefix . 'eseabasi_products';
+        
+        // Check if product already exists for this type
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $products_table WHERE name = %s AND type = %s",
+            $name, $type
+        ));
+        
+        if ($existing) {
+            wp_send_json_error(array('message' => __('A product with this name already exists for this type.', 'eseabasi-inventory')));
+        }
+        
+        $result = $wpdb->insert(
+            $products_table,
+            array(
+                'name' => $name,
+                'type' => $type,
+                'is_fruit' => $is_fruit,
+                'status' => $status
+            ),
+            array('%s', '%s', '%d', '%s')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => __('Product added successfully.', 'eseabasi-inventory')));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to add product.', 'eseabasi-inventory')));
+        }
     }
     
     /**
@@ -454,8 +522,35 @@ class Eseabasi_Admin {
             wp_die(__('Unauthorized', 'eseabasi-inventory'));
         }
         
-        // Implementation will be added in the next iteration
-        wp_send_json_success(array('message' => __('Product updated successfully.', 'eseabasi-inventory')));
+        $product_id = intval($_POST['product_id']);
+        $name = sanitize_text_field($_POST['name']);
+        $is_fruit = isset($_POST['is_fruit']) ? 1 : 0;
+        $status = sanitize_text_field($_POST['status']);
+        
+        if (empty($name) || !$product_id) {
+            wp_send_json_error(array('message' => __('Product name and ID are required.', 'eseabasi-inventory')));
+        }
+        
+        global $wpdb;
+        $products_table = $wpdb->prefix . 'eseabasi_products';
+        
+        $result = $wpdb->update(
+            $products_table,
+            array(
+                'name' => $name,
+                'is_fruit' => $is_fruit,
+                'status' => $status
+            ),
+            array('id' => $product_id),
+            array('%s', '%d', '%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => __('Product updated successfully.', 'eseabasi-inventory')));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to update product.', 'eseabasi-inventory')));
+        }
     }
     
     /**
@@ -468,8 +563,26 @@ class Eseabasi_Admin {
             wp_die(__('Unauthorized', 'eseabasi-inventory'));
         }
         
-        // Implementation will be added in the next iteration
-        wp_send_json_success(array('message' => __('Product deleted successfully.', 'eseabasi-inventory')));
+        $product_id = intval($_POST['product_id']);
+        
+        if (!$product_id) {
+            wp_send_json_error(array('message' => __('Product ID is required.', 'eseabasi-inventory')));
+        }
+        
+        global $wpdb;
+        $products_table = $wpdb->prefix . 'eseabasi_products';
+        
+        $result = $wpdb->delete(
+            $products_table,
+            array('id' => $product_id),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => __('Product deleted successfully.', 'eseabasi-inventory')));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to delete product.', 'eseabasi-inventory')));
+        }
     }
     
     /**
@@ -482,8 +595,23 @@ class Eseabasi_Admin {
             wp_die(__('Unauthorized', 'eseabasi-inventory'));
         }
         
-        // Implementation will be added in the next iteration
-        wp_send_json_success(array('message' => __('History cleared successfully.', 'eseabasi-inventory')));
+        $type = sanitize_text_field($_POST['type']);
+        
+        if (empty($type)) {
+            wp_send_json_error(array('message' => __('History type is required.', 'eseabasi-inventory')));
+        }
+        
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'eseabasi_' . $type . ($type === 'import' ? 's' : '');
+        
+        $result = $wpdb->query("DELETE FROM $table_name");
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => sprintf(__('%s history cleared successfully.', 'eseabasi-inventory'), ucfirst($type))));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to clear history.', 'eseabasi-inventory')));
+        }
     }
     
     /**
@@ -496,7 +624,27 @@ class Eseabasi_Admin {
             wp_die(__('Unauthorized', 'eseabasi-inventory'));
         }
         
-        // Implementation will be added in the next iteration
-        wp_send_json_success(array('message' => __('History item deleted successfully.', 'eseabasi-inventory')));
+        $item_id = intval($_POST['item_id']);
+        $type = sanitize_text_field($_POST['type']);
+        
+        if (!$item_id || empty($type)) {
+            wp_send_json_error(array('message' => __('Item ID and type are required.', 'eseabasi-inventory')));
+        }
+        
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'eseabasi_' . $type . ($type === 'import' ? 's' : '');
+        
+        $result = $wpdb->delete(
+            $table_name,
+            array('id' => $item_id),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => __('History item deleted successfully.', 'eseabasi-inventory')));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to delete history item.', 'eseabasi-inventory')));
+        }
     }
 }
